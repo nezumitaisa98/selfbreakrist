@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>セルフブレイクカード一覧</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  :root {
+    --bg: #10121b;
+    --bg-card: #1a1d2b;
+    --gold: #d4af37;
+    --gold-dim: #a3862c;
+    --text: #eae8e1;
+    --text-dim: #9296a8;
+    --line: #2a2e42;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding-bottom: 60px;
+  }
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: linear-gradient(180deg, #10121b 85%, #10121b00);
+    padding: 20px 16px 12px;
+  }
+  h1 {
+    font-family: 'Shippori Mincho', serif;
+    font-weight: 700;
+    font-size: 1.4rem;
+    margin: 0 0 2px;
+    letter-spacing: 0.02em;
+    color: var(--gold);
+  }
+  .subtitle {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-bottom: 14px;
+  }
+  .search-wrap { position: relative; margin-bottom: 10px; }
+  #search {
+    width: 100%;
+    padding: 11px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--bg-card);
+    color: var(--text);
+    font-size: 0.95rem;
+    font-family: inherit;
+  }
+  #search:focus { outline: none; border-color: var(--gold-dim); }
+  .filter-row {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    margin-bottom: 6px;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .filter-row::-webkit-scrollbar { display: none; }
+  .filter-label {
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    margin: 8px 0 4px 2px;
+    letter-spacing: 0.05em;
+  }
+  .chip {
+    flex: none;
+    padding: 6px 13px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+  .chip.active { background: var(--gold); border-color: var(--gold); color: #14161f; font-weight: 700; }
+  .count-bar { font-size: 0.75rem; color: var(--text-dim); padding: 4px 2px 2px; }
+  main { padding: 4px 16px 0; }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 13px 14px;
+    margin-bottom: 9px;
+  }
+  .card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+  .card-name { font-size: 1rem; font-weight: 700; color: var(--text); line-height: 1.3; }
+  .card-kind { font-size: 0.7rem; color: var(--text-dim); white-space: nowrap; flex: none; }
+  .badges { display: flex; gap: 5px; margin-bottom: 9px; flex-wrap: wrap; }
+  .badge { font-size: 0.68rem; padding: 2px 8px; border-radius: 5px; font-weight: 500; }
+  .badge.scope-general { background: #4a90a42a; color: #7ec4d8; }
+  .badge.scope-theme { background: #b06a4a2a; color: #e0a583; }
+  .badge.effect-only { background: #5c61782a; color: #b6b9c8; }
+  .badge.effect-plus { background: #c9a2272a; color: var(--gold); }
+  .details { font-size: 0.8rem; color: var(--text-dim); line-height: 1.7; }
+  .details b { color: var(--text); font-weight: 500; }
+  .wiki-link {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 0.78rem;
+    color: var(--gold);
+    text-decoration: none;
+    border-top: 1px solid var(--line);
+    padding-top: 8px;
+    width: 100%;
+  }
+  .wiki-link:active { opacity: 0.7; }
+  .empty { text-align: center; color: var(--text-dim); padding: 60px 20px; font-size: 0.9rem; }
+  .status { text-align: center; color: var(--text-dim); padding: 40px 20px; font-size: 0.85rem; }
+  .status.error { color: #e0a583; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>セルフブレイクカード一覧</h1>
+  <div class="subtitle">Googleスプレッドシートから自動読み込み</div>
+  <div class="search-wrap">
+    <input id="search" type="text" placeholder="カード名で検索..." disabled>
+  </div>
+  <div class="filter-label">対象範囲</div>
+  <div class="filter-row" id="scope-filters"></div>
+  <div class="filter-label">効果内容</div>
+  <div class="filter-row" id="effect-filters"></div>
+  <div class="filter-label">種類</div>
+  <div class="filter-row" id="kind-filters"></div>
+  <div class="filter-label">破壊対象</div>
+  <div class="filter-row" id="target-filters"></div>
+  <div class="count-bar" id="count-bar"></div>
+</header>
+
+<main id="list"><div class="status" id="loading-msg">読み込み中...</div></main>
+<div class="empty" id="empty-msg" style="display:none;">該当するカードが見つかりません</div>
+
+<script>
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRFLm9TNZ8a4_D-xI5lr65tpGnHZzKXaGy-BbUVngGZZXP1Esys_W7sskWaQWV7IXkVrK8qNB-PoC8r/pub?output=csv";
+
+let CARDS = [];
+let state = { q: '', scope: '全て', effect: '全て', kind: '全て', target: '全て' };
+
+// 「破壊対象の指定」列は1枚ごとに文言がバラバラなので、
+// あらかじめ決めた8つの大分類に自動で振り分けるための一覧。
+const TARGET_CATEGORIES = [
+  'モンスターのみ対象',
+  '魔法・罠のみ対象',
+  '種類を問わない',
+  '自分フィールド限定',
+  '相手フィールドも対象',
+  'ペンデュラムゾーン関連',
+  'カード名指定系',
+  '属性・種族などの条件付き',
+];
+
+// F列の文章(text)を読み取り、当てはまる大分類をすべて返す関数。
+// 1枚のカードが複数のカテゴリに同時に当てはまることもある
+// （例：「自分フィールドのカード」→自分フィールド限定 かつ 種類を問わない）
+function classifyTarget(text) {
+  const cats = new Set();
+  if (!text) return cats;
+
+  // ペンデュラムゾーンに関する記述か
+  if (text.includes('ペンデュラムゾーン')) {
+    cats.add('ペンデュラムゾーン関連');
+  }
+
+  // 自分/相手のフィールドを対象にしているか
+  if (text.includes('自分・相手フィールド') || text.includes('自分・相手のフィールド')) {
+    cats.add('自分フィールド限定');
+    cats.add('相手フィールドも対象');
+  } else if (text.includes('自分フィールドのカード') || text.includes('自分フィールド')) {
+    cats.add('自分フィールド限定');
+  }
+  if (text.includes('相手フィールド')) {
+    cats.add('相手フィールドも対象');
+  }
+
+  // 「同名カード以外」「自身以外」など、カード名を条件にしているか
+  if (text.includes('同名カード') || text.includes('自身以外') || text.includes('自身と') || text.includes('自身を含む') || /《.+》/.test(text)) {
+    cats.add('カード名指定系');
+  }
+
+  // 属性・種族を条件にしているか
+  if (text.includes('属性') || text.includes('族')) {
+    cats.add('属性・種族などの条件付き');
+  }
+
+  // モンスター/魔法・罠のどちらを対象にしているか
+  const hasMonster = text.includes('モンスター');
+  const hasSpellTrap = text.includes('魔法') || text.includes('罠');
+  if (hasMonster && !hasSpellTrap) {
+    cats.add('モンスターのみ対象');
+  } else if (hasSpellTrap && !hasMonster) {
+    cats.add('魔法・罠のみ対象');
+  } else {
+    // 「表側表示カード」「フィールドのカード」など、種類を限定していない表現
+    cats.add('種類を問わない');
+  }
+
+  return cats;
+}
+
+function uniqueVals(key) {
+  return [...new Set(CARDS.map(c => c[key]))].filter(Boolean);
+}
+
+function buildChips(containerId, key, allLabel) {
+  const container = document.getElementById(containerId);
+  const vals = [allLabel, ...uniqueVals(key)];
+  container.innerHTML = vals.map(v =>
+    `<button class="chip${v===state[key]?' active':''}" data-key="${key}" data-val="${v}">${v}</button>`
+  ).join('');
+  container.querySelectorAll('.chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state[btn.dataset.key] = btn.dataset.val;
+      container.querySelectorAll('.chip').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      render();
+    });
+  });
+}
+
+function buildTargetChips() {
+  const container = document.getElementById('target-filters');
+  const vals = ['全て', ...TARGET_CATEGORIES];
+  container.innerHTML = vals.map(v =>
+    `<button class="chip${v===state.target?' active':''}" data-val="${v}">${v}</button>`
+  ).join('');
+  container.querySelectorAll('.chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.target = btn.dataset.val;
+      container.querySelectorAll('.chip').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      render();
+    });
+  });
+}
+
+function wikiUrl(name) {
+  // 公式データベース(db.yugioh-card.com)内をGoogleで検索するリンクを作る
+  const query = 'site:db.yugioh-card.com ' + name;
+  return 'https://www.google.com/search?q=' + encodeURIComponent(query);
+}
+
+function badgeClass(prefix, val) {
+  if (prefix === 'scope') return val === '汎用' ? 'scope-general' : 'scope-theme';
+  return val === '破壊のみ' ? 'effect-only' : 'effect-plus';
+}
+
+function render() {
+  const q = state.q.trim();
+  const filtered = CARDS.filter(c => {
+    if (q && !c.name.includes(q)) return false;
+    if (state.scope !== '全て' && c.scope !== state.scope) return false;
+    if (state.effect !== '全て' && c.effect !== state.effect) return false;
+    if (state.kind !== '全て' && c.kind !== state.kind) return false;
+    if (state.target !== '全て' && !c.targetCats.has(state.target)) return false;
+    return true;
+  });
+
+  document.getElementById('count-bar').textContent = `${filtered.length} / ${CARDS.length} 件表示中`;
+  const list = document.getElementById('list');
+  const emptyMsg = document.getElementById('empty-msg');
+
+  if (filtered.length === 0) {
+    list.innerHTML = '';
+    emptyMsg.style.display = 'block';
+    return;
+  }
+  emptyMsg.style.display = 'none';
+
+  list.innerHTML = filtered.map(c => `
+    <div class="card">
+      <div class="card-top">
+        <div class="card-name">${c.name}</div>
+        <div class="card-kind">${c.kind}</div>
+      </div>
+      <div class="badges">
+        <span class="badge ${badgeClass('scope', c.scope)}">${c.scope}</span>
+        <span class="badge ${badgeClass('effect', c.effect)}">${c.effect}</span>
+      </div>
+      <div class="details">
+        <b>発動場所</b>：${c.place}<br>
+        <b>破壊対象</b>：${c.target}<br>
+        <b>破壊枚数</b>：${c.count}
+        <a class="wiki-link" href="${wikiUrl(c.name)}" target="_blank" rel="noopener">公式データベースで見る →</a>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function init() {
+  try {
+    const res = await fetch(CSV_URL, { cache: 'no-store' });
+    if (!res.ok) throw new Error('取得に失敗しました（' + res.status + '）');
+    const text = await res.text();
+    const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+    CARDS = parsed.data
+      .filter(row => row['カード名'])
+      .map(row => ({
+        name: row['カード名'] || '',
+        scope: row['対象範囲'] || '',
+        effect: row['効果内容'] || '',
+        kind: row['種類'] || '',
+        place: row['発動できる場所'] || '',
+        target: row['破壊対象の指定'] || '',
+        targetCats: classifyTarget(row['破壊対象の指定'] || ''),
+        count: row['破壊枚数'] || '1枚',
+      }));
+
+    document.getElementById('search').disabled = false;
+    document.querySelector('.subtitle').textContent = `Googleスプレッドシートから自動読み込み ・ 全${CARDS.length}枚`;
+
+    document.getElementById('search').addEventListener('input', (e) => {
+      state.q = e.target.value;
+      render();
+    });
+
+    buildChips('scope-filters', 'scope', '全て');
+    buildChips('effect-filters', 'effect', '全て');
+    buildChips('kind-filters', 'kind', '全て');
+    buildTargetChips();
+    render();
+  } catch (err) {
+    document.getElementById('list').innerHTML =
+      `<div class="status error">データの読み込みに失敗しました。<br>時間をおいて再度開くか、共有設定をご確認ください。<br><br>(${err.message})</div>`;
+  }
+}
+
+init();
+</script>
+</body>
+</html>
